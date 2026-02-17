@@ -1,0 +1,40 @@
+-- Brainrot Structure Scanner - run this and send F9 output
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local brainrotsFolder = ReplicatedStorage:WaitForChild("Assets", 5):WaitForChild("Brainrots", 5)
+if not brainrotsFolder then warn("Brainrots folder not found!") return end
+
+-- Just scan the FIRST brainrot in the FIRST rarity folder in detail
+local firstRarity = brainrotsFolder:GetChildren()[1]
+if not firstRarity then warn("No rarity folders!") return end
+
+local firstBrainrot = firstRarity:GetChildren()[1]
+if not firstBrainrot then warn("No brainrots in first rarity!") return end
+
+print("=== FIRST BRAINROT FULL STRUCTURE ===")
+print("Name: " .. firstBrainrot.Name)
+print("ClassName: " .. firstBrainrot.ClassName)
+
+local function printTree(obj, indent)
+	for _, child in ipairs(obj:GetChildren()) do
+		local info = indent .. "[" .. child.ClassName .. "] " .. child.Name
+		-- Extra info for BaseParts
+		if child:IsA("BasePart") then
+			info = info .. " | Size: " .. tostring(child.Size) .. " | Anchored: " .. tostring(child.Anchored) .. " | Pos: " .. tostring(child.Position)
+		end
+		-- Extra info for values
+		if child:IsA("StringValue") or child:IsA("NumberValue") or child:IsA("IntValue") or child:IsA("BoolValue") then
+			info = info .. " | Value: " .. tostring(child.Value)
+		end
+		print(info)
+		printTree(child, indent .. "  ")
+	end
+end
+
+printTree(firstBrainrot, "  ")
+print("=== END ===")
+print("")
+print("Also checking if it has a PrimaryPart:")
+if firstBrainrot:IsA("Model") then
+	print("PrimaryPart: " .. tostring(firstBrainrot.PrimaryPart))
+end
