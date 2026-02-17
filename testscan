@@ -1,0 +1,26 @@
+-- UI Scanner - check ReplicatedStorage > Assets > UI for brainrot overhead
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local assetsFolder = ReplicatedStorage:WaitForChild("Assets", 5)
+if not assetsFolder then warn("Assets not found!") return end
+
+local uiFolder = assetsFolder:FindFirstChild("UI") or assetsFolder:FindFirstChild("Ui") or assetsFolder:FindFirstChild("ui")
+if not uiFolder then
+	warn("No UI folder found in Assets!")
+	print("Available folders in Assets:")
+	for _, child in ipairs(assetsFolder:GetChildren()) do
+		print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
+	end
+	return
+end
+
+print("=== UI FOLDER CONTENTS ===")
+for _, child in ipairs(uiFolder:GetChildren()) do
+	print("[" .. child.ClassName .. "] " .. child.Name)
+	-- Print children too
+	for _, subchild in ipairs(child:GetChildren()) do
+		print("  [" .. subchild.ClassName .. "] " .. subchild.Name)
+	end
+end
+print("=== END ===")
+print("Look for anything related to 'brainrot', 'overhead', 'tag', 'nameplate', 'label'")
