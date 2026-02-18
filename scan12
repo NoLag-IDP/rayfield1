@@ -1,0 +1,35 @@
+-- Read MoneyModule and BrainrotModule to understand money calculation
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+print("=== READING MONEYMODULE ===")
+local sharedModules = ReplicatedStorage:FindFirstChild("SharedModules")
+if sharedModules then
+	local moneyModule = sharedModules:FindFirstChild("MoneyModule")
+	if moneyModule and moneyModule:IsA("ModuleScript") then
+		print("MoneyModule source code:")
+		print(moneyModule.Source)
+	else
+		print("MoneyModule not found or not a ModuleScript")
+	end
+	
+	print("\n=== READING BRAINROTMODULE ===")
+	local brainrotModule = sharedModules:FindFirstChild("BrainrotModule")
+	if brainrotModule and brainrotModule:IsA("ModuleScript") then
+		print("BrainrotModule source code:")
+		print(brainrotModule.Source)
+	else
+		print("BrainrotModule not found")
+	end
+end
+
+print("\n=== CHECKING INITIALGAMEVALUES ===")
+local shared = ReplicatedStorage:FindFirstChild("Shared")
+if shared then
+	local initialValues = shared:FindFirstChild("InitialGameValues")
+	if initialValues and initialValues:IsA("ModuleScript") then
+		print("InitialGameValues source (first 2000 chars):")
+		print(initialValues.Source:sub(1, 2000))
+	end
+end
+
+print("\n=== END ===")
