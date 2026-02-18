@@ -1,0 +1,85 @@
+-- Find real brainrots in workspace and check their attributes/values
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+print("=== CHECKING WORKSPACE FOR BRAINROTS ===")
+-- Look for any brainrot models in workspace
+local found = false
+for _, obj in ipairs(Workspace:GetDescendants()) do
+	if obj:IsA("Model") and obj:FindFirstChild("Handle") then
+		-- Check if it has brainrot-related attributes or a StatsGui
+		local hasStatsGui = false
+		for _, desc in ipairs(obj:GetDescendants()) do
+			if desc.Name == "StatsGui" and desc:IsA("BillboardGui") then
+				hasStatsGui = true
+				print("\n=== FOUND BRAINROT IN WORKSPACE: " .. obj.Name .. " ===")
+				
+				-- Print all attributes
+				print("Attributes:")
+				for _, attr in ipairs(obj:GetAttributes()) do
+					print("  " .. attr .. " = " .. tostring(obj:GetAttribute(attr)))
+				end
+				
+				-- Print StatsGui structure
+				print("\nStatsGui structure:")
+				local function printTree(o, indent)
+					for _, c in ipairs(o:GetChildren()) do
+						local info = indent .. "[" .. c.ClassName .. "] " .. c.Name
+						if c:IsA("TextLabel") then
+							info = info .. ' | Text="' .. c.Text .. '"'
+						end
+						print(info)
+						printTree(c, indent .. "  ")
+					end
+				end
+				printTree(desc, "  ")
+				
+				found = true
+				break
+			end
+		end
+	end
+	if found then break end
+end
+
+if not found then
+	print("No brainrots found in Workspace")
+end
+
+print("\n=== STATSGUI TEMPLATE FROM REPLICATEDSTORAGE ===")
+local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+if assetsFolder then
+	local uiFolder = assetsFolder:FindFirstChild("UI")
+	if uiFolder then
+		local statsGui = uiFolder:FindFirstChild("StatsGui")
+		if statsGui then
+			print("StatsGui template found!")
+			local function printTree(o, indent)
+				for _, c in ipairs(o:GetChildren()) do
+					local info = indent .. "[" .. c.ClassName .. "] " .. c.Name
+					if c:IsA("TextLabel") then
+						info = info .. ' | Text="' .. c.Text .. '" | TextColor3=' .. tostring(c.TextColor3)
+					end
+					print(info)
+					printTree(c, indent .. "  ")
+				end
+			end
+			printTree(statsGui, "  ")
+		end
+	end
+end
+
+print("\n=== CHECKING MUTATION FOLDER ===")
+if assetsFolder then
+	local mutFolder = assetsFolder:FindFirstChild("Mutation") or assetsFolder:FindFirstChild("Mutations")
+	if mutFolder then
+		print("Mutations available:")
+		for _, mut in ipairs(mutFolder:GetChildren()) do
+			print("  - " .. mut.Name)
+		end
+	else
+		print("No Mutation folder found")
+	end
+end
+
+print("\n=== END ===")
