@@ -1,0 +1,371 @@
+-- Escape Tsunami - Brainrot Spawner (Rayfield)
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- SCAN BRAINROTS
+local brainrotLookup = {}
+local brainrotNames  = {}
+
+local function scanBrainrots()
+	brainrotLookup = {}
+	brainrotNames  = {}
+
+	local assetsFolder = ReplicatedStorage:WaitForChild("Assets", 5)
+	if not assetsFolder then warn("[Spawner] Assets not found!") return end
+
+	local brainrotsFolder = assetsFolder:WaitForChild("Brainrots", 5)
+	if not brainrotsFolder then warn("[Spawner] Brainrots not found!") return end
+
+	for _, rarityFolder in ipairs(brainrotsFolder:GetChildren()) do
+		if rarityFolder:IsA("Folder") then
+			for _, brainrot in ipairs(rarityFolder:GetChildren()) do
+				local name = brainrot.Name
+				if not brainrotLookup[name] then
+					-- Store rarity directly from the PARENT FOLDER NAME — this is the source of truth
+					brainrotLookup[name] = { rarity = rarityFolder.Name, object = brainrot }
+					table.insert(brainrotNames, name)
+					print("[Spawner] Found: " .. name .. " (" .. rarityFolder.Name .. ")")
+				end
+			end
+		end
+	end
+
+	table.sort(brainrotNames)
+	print("[Spawner] Total: " .. #brainrotNames .. " brainrots")
+end
+
+scanBrainrots()
+
+if #brainrotNames == 0 then
+	warn("[Spawner] Using fallback list")
+	brainrotNames = {"Tralalero Tralala","Bombardiro Crocodilo","Tung Tung Tung Sahur"}
+	for _, n in ipairs(brainrotNames) do
+		brainrotLookup[n] = { rarity = "Unknown", object = nil }
+	end
+end
+
+-- RARITY COLOR MAP — customize these to match your game's rarity colors
+local rarityColors = {
+	["Common"]    = Color3.fromRGB(200, 200, 200),
+	["Uncommon"]  = Color3.fromRGB(100, 220, 100),
+	["Rare"]      = Color3.fromRGB(80, 150, 255),
+	["Epic"]      = Color3.fromRGB(180, 80, 255),
+	["Legendary"] = Color3.fromRGB(255, 180, 0),
+	["Mythical"]  = Color3.fromRGB(255, 80, 80),
+	["Infinity"]  = Color3.fromRGB(0, 255, 255),
+}
+
+local function getRarityColor(rarity)
+	return rarityColors[rarity] or Color3.fromRGB(200, 220, 255)
+end
+
+-- GET IN-GAME STATSgui TEMPLATE
+local function getStatsGuiTemplate()
+	local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+	if not assetsFolder then return nil end
+	local uiFolder = assetsFolder:FindFirstChild("UI")
+	if not uiFolder then return nil end
+	local statsGui = uiFolder:FindFirstChild("StatsGui")
+	return statsGui
+end
+
+-- APPLY OVERHEAD — rarity is read directly from brainrotLookup, never guessed
+local function applyStatsGuiOverhead(tool, name, level, rarity, attachPart)
+	-- Always remove any existing overhead first to prevent duplicates
+	local existing = attachPart:FindFirstChild("StatsGui")
+	if existing then existing:Destroy() end
+
+	-- Try the in-game StatsGui template first
+	local template = getStatsGuiTemplate()
+
+	if template then
+		local clonedGui = template:Clone()
+		clonedGui.Name = "StatsGui"
+
+		local nameLabel = clonedGui:FindFirstChild("Name", true)
+			or clonedGui:FindFirstChild("NameLabel", true)
+			or clonedGui:FindFirstChild("BrainrotName", true)
+		if nameLabel and nameLabel:IsA("TextLabel") then
+			nameLabel.Text = name
+		end
+
+		local levelLabel = clonedGui:FindFirstChild("Level", true)
+			or clonedGui:FindFirstChild("LevelLabel", true)
+		if levelLabel and levelLabel:IsA("TextLabel") then
+			levelLabel.Text = "Lv." .. level
+		end
+
+		local rarityLabel = clonedGui:FindFirstChild("Rarity", true)
+			or clonedGui:FindFirstChild("RarityLabel", true)
+		if rarityLabel and rarityLabel:IsA("TextLabel") then
+			rarityLabel.Text = rarity
+			rarityLabel.TextColor3 = getRarityColor(rarity)
+		end
+
+		if clonedGui:IsA("BillboardGui") then
+			clonedGui.StudsOffset = Vector3.new(0, attachPart.Size.Y / 2 + 2, 0)
+			clonedGui.AlwaysOnTop = true
+		end
+
+		clonedGui.Parent = attachPart
+		print("[Spawner] Attached in-game StatsGui overhead: " .. name .. " | Rarity: " .. rarity)
+		return
+	end
+
+	-- Fallback: custom billboard with rarity color coding
+	warn("[Spawner] StatsGui template not found — using custom billboard fallback")
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "StatsGui"
+	billboard.Size = UDim2.new(0, 220, 0, 70)
+	billboard.StudsOffset = Vector3.new(0, attachPart.Size.Y / 2 + 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = attachPart
+
+	-- Name label
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = name
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextSize = 14
+	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	nameLabel.TextStrokeTransparency = 0
+	nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	nameLabel.Parent = billboard
+
+	-- Rarity + Level label with proper rarity color
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.Size = UDim2.new(1, 0, 0.5, 0)
+	infoLabel.Position = UDim2.new(0, 0, 0.5, 0)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.Text = "Lv." .. level .. "  •  " .. rarity
+	infoLabel.Font = Enum.Font.GothamBold
+	infoLabel.TextSize = 12
+	-- Use rarity color from lookup — Infinity will show as cyan, Legendary as gold, etc.
+	infoLabel.TextColor3 = getRarityColor(rarity)
+	infoLabel.TextStrokeTransparency = 0
+	infoLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	infoLabel.Parent = billboard
+
+	print("[Spawner] Fallback overhead applied: " .. name .. " | Rarity: " .. rarity)
+end
+
+-- SPAWN LOGIC
+local function spawnBrainrot(name, level)
+	if not name or name == "" then return false, "No brainrot selected!" end
+
+	local lvl = tonumber(level)
+	if not lvl or lvl < 1 then return false, "Level must be a number (min 1)!" end
+
+	local entry = brainrotLookup[name]
+	if not entry then return false, "Brainrot not found!" end
+
+	-- Rarity is taken from the lookup which was set at scan time from the folder structure
+	-- This means Infinity brainrots inside the "Infinity" folder will always show "Infinity"
+	local rarity = entry.rarity
+	print("[Spawner] Spawning: " .. name .. " | Rarity from lookup: " .. rarity)
+
+	local player = Players.LocalPlayer
+	local character = player.Character
+	if not character then return false, "Character not found!" end
+
+	-- Clone
+	local cloned = nil
+	if entry.object then
+		pcall(function() entry.object.Archivable = true end)
+		for _, v in ipairs(entry.object:GetDescendants()) do
+			pcall(function() v.Archivable = true end)
+		end
+		local ok, result = pcall(function() return entry.object:Clone() end)
+		if ok and result then cloned = result end
+	end
+
+	if not cloned then return false, "Failed to clone " .. name .. "!" end
+
+	-- Find Handle
+	local handle = cloned:FindFirstChild("Handle")
+	if not handle then
+		handle = cloned:FindFirstChildWhichIsA("BasePart")
+		if handle then handle.Name = "Handle" end
+	end
+	if not handle then return false, "No Handle found!" end
+
+	local handleCFrame = handle.CFrame
+
+	for _, v in ipairs(cloned:GetDescendants()) do
+		if v:IsA("BasePart") then
+			v.Anchored = true
+			v.CanCollide = false
+		end
+	end
+	handle.Anchored = true
+	handle.CanCollide = false
+
+	local offsetCFrame = handleCFrame:Inverse()
+	for _, v in ipairs(cloned:GetDescendants()) do
+		if v:IsA("BasePart") and v ~= handle then
+			v.CFrame = offsetCFrame * v.CFrame
+		end
+	end
+	handle.CFrame = CFrame.new(0, 0, 0)
+
+	local tool = Instance.new("Tool")
+	tool.Name = name
+	tool.CanBeDropped = true
+	tool.RequiresHandle = true
+	tool.GripPos = Vector3.new(0, -1.5, 0)
+	tool.GripForward = Vector3.new(0, 0, -1)
+	tool.GripUp = Vector3.new(0, 1, 0)
+	tool.GripRight = Vector3.new(1, 0, 0)
+	tool:SetAttribute("Level", lvl)
+	-- Rarity attribute set from the folder-scanned lookup — not guessed
+	tool:SetAttribute("Rarity", rarity)
+
+	for _, child in ipairs(cloned:GetChildren()) do
+		child.Parent = tool
+	end
+	cloned:Destroy()
+
+	local toolHandle = tool:FindFirstChild("Handle")
+
+	-- Find topmost part for billboard attachment
+	local billboardPart = toolHandle
+	local maxY = toolHandle.Position.Y + toolHandle.Size.Y / 2
+	for _, v in ipairs(tool:GetDescendants()) do
+		if v:IsA("BasePart") then
+			local topY = v.Position.Y + v.Size.Y / 2
+			if topY > maxY then
+				maxY = topY
+				billboardPart = v
+			end
+		end
+	end
+
+	-- Pass rarity from lookup — this is where the fix matters
+	applyStatsGuiOverhead(tool, name, lvl, rarity, billboardPart)
+
+	-- Weld all parts to Handle
+	for _, v in ipairs(tool:GetDescendants()) do
+		if v:IsA("BasePart") and v ~= toolHandle then
+			v.Anchored = false
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = toolHandle
+			weld.Part1 = v
+			weld.Parent = toolHandle
+		end
+	end
+	toolHandle.Anchored = false
+
+	local backpack = player:FindFirstChild("Backpack")
+	if backpack then
+		tool.Parent = backpack
+	else
+		tool.Parent = character
+	end
+
+	task.wait(0.05)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		pcall(function() humanoid:EquipTool(tool) end)
+	end
+
+	return true, name .. " (Lv." .. lvl .. ") [" .. rarity .. "] equipped!"
+end
+
+-- RAYFIELD WINDOW
+local Window = Rayfield:CreateWindow({
+	Name                   = "Brainrot Spawner",
+	LoadingTitle           = "Escape Tsunami",
+	LoadingSubtitle        = "Brainrot Spawner",
+	Theme                  = "Default",
+	DisableRayfieldPrompts = true,
+	DisableBuildWarnings   = true,
+	ConfigurationSaving    = { Enabled = false },
+	KeySystem              = false,
+})
+
+local Tab = Window:CreateTab("Spawn", 0)
+
+local selectedBrainrot = brainrotNames[1] or ""
+local levelValue = "1"
+
+Tab:CreateDropdown({
+	Name            = "Select Brainrot  (" .. #brainrotNames .. " found)",
+	Options         = brainrotNames,
+	CurrentOption   = { brainrotNames[1] },
+	MultipleOptions = false,
+	Flag            = "BrainrotDropdown",
+	Callback        = function(option)
+		if type(option) == "table" then
+			selectedBrainrot = option[1] or ""
+		else
+			selectedBrainrot = tostring(option)
+		end
+		local entry = brainrotLookup[selectedBrainrot]
+		if entry then
+			print("[Spawner] Selected: " .. selectedBrainrot .. " | Rarity: " .. entry.rarity)
+		end
+	end,
+})
+
+Tab:CreateInput({
+	Name            = "Level",
+	CurrentValue    = "1",
+	PlaceholderText = "e.g. 50",
+	NumbersOnly     = true,
+	Flag            = "LevelInput",
+	Callback        = function(val)
+		levelValue = val
+	end,
+})
+
+Tab:CreateButton({
+	Name     = "Spawn Brainrot",
+	Callback = function()
+		if not selectedBrainrot or selectedBrainrot == "" then
+			Rayfield:Notify({ Title = "No Brainrot", Content = "Pick one from the dropdown!", Duration = 4 })
+			return
+		end
+		if levelValue == "" or not tonumber(levelValue) then
+			Rayfield:Notify({ Title = "Invalid Level", Content = "Level must be a valid number!", Duration = 4 })
+			return
+		end
+		local ok, msg = spawnBrainrot(selectedBrainrot, levelValue)
+		if ok then
+			Rayfield:Notify({ Title = "Spawned!", Content = msg, Duration = 4 })
+		else
+			Rayfield:Notify({ Title = "Error", Content = msg, Duration = 4 })
+		end
+	end,
+})
+
+Tab:CreateButton({
+	Name     = "Clear Spawned Brainrots",
+	Callback = function()
+		local player = Players.LocalPlayer
+		local backpack = player:FindFirstChild("Backpack")
+		local character = player.Character
+		local count = 0
+		if backpack then
+			for _, item in ipairs(backpack:GetChildren()) do
+				if item:IsA("Tool") and brainrotLookup[item.Name] then
+					item:Destroy()
+					count += 1
+				end
+			end
+		end
+		if character then
+			for _, item in ipairs(character:GetChildren()) do
+				if item:IsA("Tool") and brainrotLookup[item.Name] then
+					item:Destroy()
+					count += 1
+				end
+			end
+		end
+		Rayfield:Notify({ Title = "Cleared", Content = "Removed " .. count .. " brainrot(s)!", Duration = 4 })
+	end,
+})
