@@ -1,0 +1,397 @@
+-- Escape Tsunami - Brainrot Spawner (Rayfield) - COMPLETE
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- SCAN BRAINROTS
+local brainrotLookup = {}
+local brainrotNames  = {}
+
+local function scanBrainrots()
+	brainrotLookup = {}
+	brainrotNames  = {}
+
+	local assetsFolder = ReplicatedStorage:WaitForChild("Assets", 5)
+	if not assetsFolder then warn("[Spawner] Assets not found!") return end
+
+	local brainrotsFolder = assetsFolder:WaitForChild("Brainrots", 5)
+	if not brainrotsFolder then warn("[Spawner] Brainrots not found!") return end
+
+	for _, rarityFolder in ipairs(brainrotsFolder:GetChildren()) do
+		if rarityFolder:IsA("Folder") then
+			for _, brainrot in ipairs(rarityFolder:GetChildren()) do
+				local name = brainrot.Name
+				if not brainrotLookup[name] then
+					brainrotLookup[name] = {
+						rarity = rarityFolder.Name,
+						object = brainrot
+					}
+					table.insert(brainrotNames, name)
+					print("[Spawner] Found: " .. name .. " (" .. rarityFolder.Name .. ")")
+				end
+			end
+		end
+	end
+
+	table.sort(brainrotNames)
+	print("[Spawner] Total: " .. #brainrotNames .. " brainrots")
+end
+
+scanBrainrots()
+
+if #brainrotNames == 0 then
+	warn("[Spawner] Using fallback list")
+	brainrotNames = {"Tralalero Tralala","Bombardiro Crocodilo","Tung Tung Tung Sahur"}
+	for _, n in ipairs(brainrotNames) do
+		brainrotLookup[n] = { rarity = "Common", object = nil }
+	end
+end
+
+-- SCAN MUTATIONS
+local mutationList = {"None"}
+local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+if assetsFolder then
+	local mutFolder = assetsFolder:FindFirstChild("Mutation") or assetsFolder:FindFirstChild("Mutations")
+	if mutFolder then
+		for _, mut in ipairs(mutFolder:GetChildren()) do
+			table.insert(mutationList, mut.Name)
+		end
+		print("[Spawner] Found " .. (#mutationList - 1) .. " mutations")
+	end
+end
+
+-- GET STATSGUI TEMPLATE
+local function getStatsGuiTemplate()
+	if not assetsFolder then return nil end
+	local uiFolder = assetsFolder:FindFirstChild("UI")
+	if not uiFolder then return nil end
+	return uiFolder:FindFirstChild("StatsGui")
+end
+
+-- APPLY OVERHEAD
+local function applyOverhead(toolHandle, brainrotName, level, rarity, mutation, money)
+	local template = getStatsGuiTemplate()
+	
+	if not template then
+		warn("[Spawner] StatsGui template not found - using fallback")
+		-- Fallback simple billboard
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.new(0, 200, 0, 100)
+		bb.StudsOffset = Vector3.new(0, 3, 0)
+		bb.AlwaysOnTop = true
+		bb.Parent = toolHandle
+
+		local frame = Instance.new("Frame")
+		frame.Size = UDim2.new(1, 0, 1, 0)
+		frame.BackgroundTransparency = 1
+		frame.Parent = bb
+
+		local layout = Instance.new("UIListLayout")
+		layout.Padding = UDim.new(0, 2)
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		layout.Parent = frame
+
+		local function createLabel(text, size)
+			local lbl = Instance.new("TextLabel")
+			lbl.Size = UDim2.new(1, 0, 0, size)
+			lbl.BackgroundTransparency = 1
+			lbl.Text = text
+			lbl.Font = Enum.Font.GothamBold
+			lbl.TextSize = size - 2
+			lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+			lbl.TextStrokeTransparency = 0
+			lbl.Parent = frame
+			return lbl
+		end
+
+		createLabel(brainrotName, 16)
+		createLabel("Level " .. level, 12)
+		createLabel(rarity, 12)
+		createLabel(mutation, 12)
+		createLabel("$" .. money, 14)
+		return
+	end
+
+	-- Clone the real StatsGui
+	local clonedGui = template:Clone()
+	
+	-- Try to find and set labels by common names
+	-- The game might use different label names, so we try multiple possibilities
+	local function findAndSet(gui, possibleNames, text)
+		for _, name in ipairs(possibleNames) do
+			local label = gui:FindFirstChild(name, true)
+			if label and label:IsA("TextLabel") then
+				label.Text = text
+				return true
+			end
+		end
+		return false
+	end
+
+	-- Set Name
+	findAndSet(clonedGui, {"Name", "NameLabel", "BrainrotName", "Title"}, brainrotName)
+	
+	-- Set Level
+	findAndSet(clonedGui, {"Level", "LevelLabel", "LVL"}, "Level " .. level)
+	
+	-- Set Rarity
+	findAndSet(clonedGui, {"Rarity", "RarityLabel", "Tier"}, rarity)
+	
+	-- Set Mutation
+	findAndSet(clonedGui, {"Mutation", "MutationLabel", "Effect"}, mutation)
+	
+	-- Set Money
+	findAndSet(clonedGui, {"Money", "MoneyLabel", "Income", "Value", "Cash"}, "$" .. money)
+
+	-- Position it above the brainrot
+	if clonedGui:IsA("BillboardGui") then
+		clonedGui.StudsOffset = Vector3.new(0, 3, 0)
+		clonedGui.AlwaysOnTop = true
+	end
+
+	clonedGui.Parent = toolHandle
+	print("[Spawner] Applied StatsGui overhead")
+end
+
+-- SPAWN LOGIC
+local function spawnBrainrot(name, level, mutation)
+	if not name or name == "" then return false, "No brainrot selected!" end
+
+	local lvl = tonumber(level)
+	if not lvl or lvl < 1 then return false, "Level must be a number (min 1)!" end
+
+	local entry = brainrotLookup[name]
+	if not entry then return false, "Brainrot not found!" end
+
+	local player = Players.LocalPlayer
+	local character = player.Character
+	if not character then return false, "Character not found!" end
+
+	-- Clone the brainrot
+	local cloned = nil
+	if entry.object then
+		pcall(function() entry.object.Archivable = true end)
+		for _, v in ipairs(entry.object:GetDescendants()) do
+			pcall(function() v.Archivable = true end)
+		end
+		local ok, result = pcall(function() return entry.object:Clone() end)
+		if ok and result then cloned = result end
+	end
+
+	if not cloned then return false, "Failed to clone " .. name .. "!" end
+
+	-- Find Handle
+	local handle = cloned:FindFirstChild("Handle")
+	if not handle then
+		handle = cloned:FindFirstChildWhichIsA("BasePart")
+		if handle then handle.Name = "Handle" end
+	end
+	if not handle then return false, "No Handle found!" end
+
+	-- Store Handle's world position
+	local handleCFrame = handle.CFrame
+
+	-- Anchor everything temporarily
+	for _, v in ipairs(cloned:GetDescendants()) do
+		if v:IsA("BasePart") then
+			v.Anchored = true
+			v.CanCollide = false
+		end
+	end
+	handle.Anchored = true
+	handle.CanCollide = false
+
+	-- Move everything relative to Handle at origin
+	local offsetCFrame = handleCFrame:Inverse()
+	for _, v in ipairs(cloned:GetDescendants()) do
+		if v:IsA("BasePart") and v ~= handle then
+			v.CFrame = offsetCFrame * v.CFrame
+		end
+	end
+	handle.CFrame = CFrame.new(0, 0, 0)
+
+	-- Create Tool wrapper
+	local tool = Instance.new("Tool")
+	tool.Name = name
+	tool.CanBeDropped = true
+	tool.RequiresHandle = true
+	tool.GripPos = Vector3.new(0, -1.5, 0)
+	tool.GripForward = Vector3.new(0, 0, -1)
+	tool.GripUp = Vector3.new(0, 1, 0)
+	tool.GripRight = Vector3.new(1, 0, 0)
+	
+	-- Store attributes
+	tool:SetAttribute("Level", lvl)
+	tool:SetAttribute("Rarity", entry.rarity)
+	tool:SetAttribute("Mutation", mutation)
+
+	-- Move model children into tool
+	for _, child in ipairs(cloned:GetChildren()) do
+		child.Parent = tool
+	end
+	cloned:Destroy()
+
+	-- Get handle inside tool
+	local toolHandle = tool:FindFirstChild("Handle")
+
+	-- Calculate base money (placeholder formula - will be replaced with GitHub data)
+	local rarityMultiplier = {
+		Common = 1,
+		Uncommon = 2,
+		Rare = 5,
+		Epic = 10,
+		Legendary = 25,
+		Mythic = 50,
+		Exotic = 100,
+		Divine = 250,
+		Celestial = 500,
+		Infinity = 1000
+	}
+	local mutationBonus = (mutation ~= "None") and 1.5 or 1
+	local baseMoney = math.floor(100 * (rarityMultiplier[entry.rarity] or 1) * mutationBonus * lvl)
+
+	-- Apply overhead
+	applyOverhead(toolHandle, name, lvl, entry.rarity, mutation, baseMoney)
+
+	-- Weld all parts to Handle
+	for _, v in ipairs(tool:GetDescendants()) do
+		if v:IsA("BasePart") and v ~= toolHandle then
+			v.Anchored = false
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = toolHandle
+			weld.Part1 = v
+			weld.Parent = toolHandle
+		end
+	end
+	toolHandle.Anchored = false
+
+	-- Send to backpack
+	local backpack = player:FindFirstChild("Backpack")
+	if backpack then
+		tool.Parent = backpack
+	else
+		tool.Parent = character
+	end
+
+	-- Equip immediately
+	task.wait(0.05)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		pcall(function() humanoid:EquipTool(tool) end)
+	end
+
+	return true, name .. " (Lv." .. lvl .. ") [" .. entry.rarity .. "] equipped!"
+end
+
+-- RAYFIELD WINDOW
+local Window = Rayfield:CreateWindow({
+	Name                   = "Brainrot Spawner",
+	LoadingTitle           = "Escape Tsunami",
+	LoadingSubtitle        = "Brainrot Spawner",
+	Theme                  = "Default",
+	DisableRayfieldPrompts = true,
+	DisableBuildWarnings   = true,
+	ConfigurationSaving    = { Enabled = false },
+	KeySystem              = false,
+})
+
+local Tab = Window:CreateTab("Spawn", 0)
+
+local selectedBrainrot = brainrotNames[1] or ""
+local levelValue = "1"
+local selectedMutation = "None"
+
+Tab:CreateDropdown({
+	Name            = "Select Brainrot  (" .. #brainrotNames .. " found)",
+	Options         = brainrotNames,
+	CurrentOption   = { brainrotNames[1] },
+	MultipleOptions = false,
+	Flag            = "BrainrotDropdown",
+	Callback        = function(option)
+		if type(option) == "table" then
+			selectedBrainrot = option[1] or ""
+		else
+			selectedBrainrot = tostring(option)
+		end
+		local entry = brainrotLookup[selectedBrainrot]
+		if entry then
+			print("[Spawner] Selected: " .. selectedBrainrot .. " | Rarity: " .. entry.rarity)
+		end
+	end,
+})
+
+Tab:CreateInput({
+	Name            = "Level",
+	CurrentValue    = "1",
+	PlaceholderText = "e.g. 50",
+	NumbersOnly     = true,
+	Flag            = "LevelInput",
+	Callback        = function(val)
+		levelValue = val
+	end,
+})
+
+Tab:CreateDropdown({
+	Name            = "Mutation  (" .. #mutationList .. " available)",
+	Options         = mutationList,
+	CurrentOption   = { "None" },
+	MultipleOptions = false,
+	Flag            = "MutationDropdown",
+	Callback        = function(option)
+		if type(option) == "table" then
+			selectedMutation = option[1] or "None"
+		else
+			selectedMutation = tostring(option)
+		end
+		print("[Spawner] Mutation: " .. selectedMutation)
+	end,
+})
+
+Tab:CreateButton({
+	Name     = "Spawn Brainrot",
+	Callback = function()
+		if not selectedBrainrot or selectedBrainrot == "" then
+			Rayfield:Notify({ Title = "No Brainrot", Content = "Pick one from the dropdown!", Duration = 4 })
+			return
+		end
+		if levelValue == "" or not tonumber(levelValue) then
+			Rayfield:Notify({ Title = "Invalid Level", Content = "Level must be a valid number!", Duration = 4 })
+			return
+		end
+		local ok, msg = spawnBrainrot(selectedBrainrot, levelValue, selectedMutation)
+		if ok then
+			Rayfield:Notify({ Title = "Spawned!", Content = msg, Duration = 4 })
+		else
+			Rayfield:Notify({ Title = "Error", Content = msg, Duration = 4 })
+		end
+	end,
+})
+
+Tab:CreateButton({
+	Name     = "Clear Spawned Brainrots",
+	Callback = function()
+		local player = Players.LocalPlayer
+		local backpack = player:FindFirstChild("Backpack")
+		local character = player.Character
+		local count = 0
+		if backpack then
+			for _, item in ipairs(backpack:GetChildren()) do
+				if item:IsA("Tool") and brainrotLookup[item.Name] then
+					item:Destroy()
+					count += 1
+				end
+			end
+		end
+		if character then
+			for _, item in ipairs(character:GetChildren()) do
+				if item:IsA("Tool") and brainrotLookup[item.Name] then
+					item:Destroy()
+					count += 1
+				end
+			end
+		end
+		Rayfield:Notify({ Title = "Cleared", Content = "Removed " .. count .. " brainrot(s)!", Duration = 4 })
+	end,
+})
