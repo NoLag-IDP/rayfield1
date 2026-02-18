@@ -1,0 +1,47 @@
+-- Check what data is stored in a brainrot object itself
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local assetsFolder = ReplicatedStorage:WaitForChild("Assets", 5)
+local brainrotsFolder = assetsFolder:WaitForChild("Brainrots", 5)
+
+-- Get first rarity folder
+local firstRarity = brainrotsFolder:GetChildren()[1]
+if not firstRarity then print("No rarity folders") return end
+
+-- Get first brainrot
+local firstBrainrot = firstRarity:GetChildren()[1]
+if not firstBrainrot then print("No brainrots in first rarity") return end
+
+print("=== BRAINROT: " .. firstBrainrot.Name .. " ===")
+print("Rarity: " .. firstRarity.Name)
+print("ClassName: " .. firstBrainrot.ClassName)
+
+print("\n=== ATTRIBUTES ===")
+for name, value in pairs(firstBrainrot:GetAttributes()) do
+	print("  " .. name .. " = " .. tostring(value))
+end
+
+print("\n=== CHILDREN (looking for Value objects) ===")
+for _, child in ipairs(firstBrainrot:GetChildren()) do
+	local info = "[" .. child.ClassName .. "] " .. child.Name
+	
+	if child:IsA("IntValue") or child:IsA("NumberValue") or child:IsA("StringValue") or child:IsA("BoolValue") then
+		info = info .. " = " .. tostring(child.Value)
+	elseif child:IsA("Configuration") or child:IsA("Folder") then
+		info = info .. " (folder with " .. #child:GetChildren() .. " items)"
+		print(info)
+		-- Print what's inside
+		for _, subchild in ipairs(child:GetChildren()) do
+			local subinfo = "  [" .. subchild.ClassName .. "] " .. subchild.Name
+			if subchild:IsA("IntValue") or subchild:IsA("NumberValue") or subchild:IsA("StringValue") or subchild:IsA("BoolValue") then
+				subinfo = subinfo .. " = " .. tostring(subchild.Value)
+			end
+			print(subinfo)
+		end
+		continue
+	end
+	
+	print(info)
+end
+
+print("\n=== END ===")
