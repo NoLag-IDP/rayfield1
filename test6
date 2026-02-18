@@ -1,0 +1,62 @@
+-- Scan Mutations and StatsGui structure
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+print("=== SCANNING MUTATIONS ===")
+local assetsFolder = ReplicatedStorage:WaitForChild("Assets", 5)
+if assetsFolder then
+	local mutationFolder = assetsFolder:FindFirstChild("Mutation") or assetsFolder:FindFirstChild("Mutations")
+	if mutationFolder then
+		print("Mutation folder found: " .. mutationFolder.Name)
+		for _, mut in ipairs(mutationFolder:GetChildren()) do
+			print("  [" .. mut.ClassName .. "] " .. mut.Name)
+			-- Print any values inside
+			for _, child in ipairs(mut:GetChildren()) do
+				local info = "    [" .. child.ClassName .. "] " .. child.Name
+				if child:IsA("StringValue") or child:IsA("NumberValue") or child:IsA("IntValue") or child:IsA("BoolValue") then
+					info = info .. " = " .. tostring(child.Value)
+				end
+				print(info)
+			end
+		end
+	else
+		print("No Mutation folder found in Assets")
+	end
+
+	print("\n=== SCANNING STATSGUI ===")
+	local uiFolder = assetsFolder:FindFirstChild("UI")
+	if uiFolder then
+		local statsGui = uiFolder:FindFirstChild("StatsGui")
+		if statsGui then
+			print("StatsGui found: [" .. statsGui.ClassName .. "]")
+			local function printTree(obj, indent)
+				for _, child in ipairs(obj:GetChildren()) do
+					local info = indent .. "[" .. child.ClassName .. "] " .. child.Name
+					if child:IsA("TextLabel") then
+						info = info .. ' | Text: "' .. child.Text .. '"'
+					end
+					print(info)
+					printTree(child, indent .. "  ")
+				end
+			end
+			printTree(statsGui, "  ")
+		else
+			print("No StatsGui found in UI folder")
+		end
+	end
+end
+
+print("\n=== SCANNING RARITY INFO ===")
+-- Check if there's rarity data anywhere
+if assetsFolder then
+	local rarityFolder = assetsFolder:FindFirstChild("Rarity") or assetsFolder:FindFirstChild("Rarities")
+	if rarityFolder then
+		print("Rarity folder found!")
+		for _, r in ipairs(rarityFolder:GetChildren()) do
+			print("  [" .. r.ClassName .. "] " .. r.Name)
+		end
+	else
+		print("No Rarity folder found")
+	end
+end
+
+print("\n=== END SCAN ===")
