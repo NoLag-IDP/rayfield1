@@ -1,0 +1,106 @@
+-- Deep scan for money data and StatsGui structure
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+print("=== SCANNING FOR MONEY/VALUE DATA ===")
+local assetsFolder = ReplicatedStorage:WaitForChild("Assets", 5)
+
+-- Check common locations for money/value data
+local moneyLocations = {
+	"Money", "Value", "Values", "Cash", "Currency", "Income",
+	"BrainrotData", "Data", "Stats", "Config", "Configuration"
+}
+
+for _, locName in ipairs(moneyLocations) do
+	local loc = assetsFolder:FindFirstChild(locName)
+	if loc then
+		print("\nFound: " .. locName)
+		for _, child in ipairs(loc:GetChildren()) do
+			print("  [" .. child.ClassName .. "] " .. child.Name)
+			if child:IsA("ValueBase") then
+				print("    Value: " .. tostring(child.Value))
+			end
+		end
+	end
+end
+
+print("\n=== CHECKING BRAINROT OBJECTS FOR VALUE DATA ===")
+local brainrotsFolder = assetsFolder:FindFirstChild("Brainrots")
+if brainrotsFolder then
+	-- Pick the first brainrot from first rarity
+	local firstRarity = brainrotsFolder:GetChildren()[1]
+	if firstRarity then
+		local firstBrainrot = firstRarity:GetChildren()[1]
+		if firstBrainrot then
+			print("Checking brainrot: " .. firstBrainrot.Name .. " (Rarity: " .. firstRarity.Name .. ")")
+			print("Children of this brainrot:")
+			for _, child in ipairs(firstBrainrot:GetChildren()) do
+				local info = "  [" .. child.ClassName .. "] " .. child.Name
+				if child:IsA("ValueBase") then
+					info = info .. " = " .. tostring(child.Value)
+				elseif child:IsA("Configuration") or child:IsA("Folder") then
+					info = info .. " (has " .. #child:GetChildren() .. " children)"
+					for _, subchild in ipairs(child:GetChildren()) do
+						local subinfo = "    [" .. subchild.ClassName .. "] " .. subchild.Name
+						if subchild:IsA("ValueBase") then
+							subinfo = subinfo .. " = " .. tostring(subchild.Value)
+						end
+						print(subinfo)
+					end
+				end
+				print(info)
+			end
+		end
+	end
+end
+
+print("\n=== STATSGUI FULL STRUCTURE ===")
+local uiFolder = assetsFolder:FindFirstChild("UI")
+if uiFolder then
+	local statsGui = uiFolder:FindFirstChild("StatsGui")
+	if statsGui then
+		print("StatsGui: [" .. statsGui.ClassName .. "]")
+		
+		local function printTree(obj, indent)
+			for _, child in ipairs(obj:GetChildren()) do
+				local info = indent .. "[" .. child.ClassName .. "] " .. child.Name
+				
+				if child:IsA("TextLabel") then
+					info = info .. ' | Text="' .. child.Text .. '"'
+					info = info .. ' | TextColor3=' .. tostring(child.TextColor3)
+				elseif child:IsA("Frame") or child:IsA("ImageLabel") then
+					info = info .. ' | BackgroundColor3=' .. tostring(child.BackgroundColor3)
+				end
+				
+				print(info)
+				printTree(child, indent .. "  ")
+			end
+		end
+		
+		printTree(statsGui, "  ")
+	else
+		print("StatsGui not found")
+	end
+end
+
+print("\n=== SEARCHING MODULESCRIPTS FOR MONEY LOGIC ===")
+-- Money calculation might be in a ModuleScript
+local function searchModules(parent, depth)
+	if depth > 3 then return end
+	for _, child in ipairs(parent:GetChildren()) do
+		if child:IsA("ModuleScript") and (
+			child.Name:lower():find("money") or 
+			child.Name:lower():find("value") or
+			child.Name:lower():find("income") or
+			child.Name:lower():find("brainrot")
+		) then
+			print("Found ModuleScript: " .. child:GetFullName())
+		end
+		if child:IsA("Folder") or child:IsA("Configuration") then
+			searchModules(child, depth + 1)
+		end
+	end
+end
+
+searchModules(ReplicatedStorage, 0)
+
+print("\n=== END SCAN ===")
